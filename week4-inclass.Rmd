@@ -1,0 +1,41 @@
+---
+title: "Week4-inclass"
+author: "Tom Gibbens-Matsuyama"
+date: "2024-10-22"
+output: html_document
+editor_options: 
+  chunk_output_type: console
+---
+
+```{r}
+# Use palmer penguins to fit a model that has an interaction between a CONTINUOUS and CATEGORICAL variable
+
+# Use palmer penguins to fit a model that has an interaction between two CONTINUOUS variables
+
+# Interpret the coefficients
+```
+
+```{r}
+library(palmerpenguins)
+library(tidyverse)
+
+penguins <- penguins
+```
+
+```{r}
+# Continuous and Categorical Variable
+summary(lm(flipper_length_mm ~ body_mass_g + sex + body_mass_g : sex, penguins))
+ggplot(penguins, aes(y=flipper_length_mm, x=body_mass_g, color = sex)) +
+  geom_point() +
+  geom_abline(intercept = 133, slope = 0.01660, color = "red") +
+  geom_abline(intercept = 1.332e+02 + -1.397e+00,
+              slope = 1.660e-02 + -6.177e-04,
+              color = "blue")
+
+```
+
+```{r}
+# Two continuous variables 
+summary(lm(flipper_length_mm ~ body_mass_g : ))
+```
+
