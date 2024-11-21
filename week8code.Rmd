@@ -1,0 +1,377 @@
+---
+title: "week8code"
+author: "Leonardo Feitosa"
+date: "`r Sys.Date()`"
+output: html_document
+---
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = TRUE)
+library(tidyverse)
+```
+
+```{r}
+# Create data
+# Sea star wasting syndrome
+ssws_data <- tibble(
+  year = c(rep(2015, 25), rep(2024, 25)),
+  ssws_present = c(rep("Present", 19), rep("Absent", 6),
+                   rep("Present", 11), rep("Absent", 14))
+) %>% 
+  mutate(x = rep(1:5, 10),
+         y = rep(rep(1:5, each = 5), 2))
+
+```
+
+```{r}
+# Visualize it
+ggplot(ssws_data, aes(x, y, fill = ssws_present)) +
+  geom_raster() +
+  scale_fill_manual(values = c("cornflowerblue", "firebrick")) +
+  facet_wrap(~year) +
+  theme_void(18) +
+  theme(axis.text = element_blank(),
+        axis.ticks = element_blank(),
+        axis.title = element_blank(),
+        aspect.ratio = 1,
+        legend.title = element_blank(),
+        legend.position = "top")
+```
+
+```{r}
+# Create shuffling 12 times
+lapply(1:12, \(i) { # applying a function to a vector and returning a list
+  ssws_data %>% 
+    mutate(ssws_present = sample(ssws_present, nrow(.))) %>% 
+    ggplot(aes(x, y, fill = ssws_present)) +
+    geom_raster() +
+    scale_fill_manual(values = c("cornflowerblue", "firebrick")) +
+    facet_wrap(~year) +
+    theme_void(18) +
+    theme(axis.text = element_blank(),
+          axis.ticks = element_blank(),
+          axis.title = element_blank(),
+          aspect.ratio = 1,
+          legend.position = "none",
+          plot.background = element_rect(color = "grey80", fill = NA),
+          plot.margin = unit(c(3, 3, 3, 3), "mm"))
+}) %>% 
+  cowplot::plot_grid(plotlist = ., nrow = 3)
+```
+
+```{r}
+# Create null distribution from the shuffling
+set.seed(21130)
+null_dist <- replicate(500, { # replicate this 500x
+  shuffled <- ssws_data %>% 
+    mutate(ssws_present = sample(ssws_present, nrow(.))) %>% # shuffling happens here
+    group_by(year) %>% 
+    summarize(prop = mean(ssws_present == "Present")) # calculating the means for SSWS present 
+  with(shuffled, prop[year == 2024] - prop[year == 2015])
+})
+#### This code output creates a vector #####
+
+
+# Pass through a tibble to create a dataframe, then can pipe into ggplot
+# Pass the output into a tibble for ggplot
+tibble(null_dist) %>% 
+  ggplot(aes(null_dist)) +
+  geom_histogram(binwidth = 0.1) +
+  labs(x = "Difference in proportions (2024 - 2015)",
+       y = "Count (out of 500 shuffles)") +
+  xlim(-0.5, 0.5) +
+  theme_classic(18)
+
+
+observed <- 11/25 - 19/25 # proportion of observed in between sampled years 
+
+sum(abs(null_dist) >= abs(observed)) # how many times is the absolute value of the null_dist greater than or equal to the observed
+mean(abs(null_dist) >= abs(observed)) # p value
+
+```
+
+## Same thing but for the solar panel simulation
+
+```{r}
+# Alternative example (solar panel adoption)
+solar_data <- tibble(
+  treatment = c(rep("Tax break", 25), rep("No tax break", 25)),
+  solar = c(rep("Installed", 21), rep("Not installed", 4),
+            rep("Installed", 16), rep("Not installed", 9))
+) %>% 
+  mutate(x = rep(1:5, 10),
+         y = rep(rep(1:5, each = 5), 2))
+
+ggplot(solar_data, aes(x, y, fill = solar)) +
+  geom_raster() +
+  scale_fill_manual(values = c("darkorchid", "goldenrod")) +
+  facet_wrap(~ treatment, ncol = 1) +
+  theme_void(18) +
+  theme(axis.text = element_blank(),
+        axis.ticks = element_blank(),
+        axis.title = element_blank(),
+        aspect.ratio = 1,
+        legend.title = element_blank(),
+        legend.position = "top")
+
+null_dist <- replicate(500, {
+  shuffled <- solar_data %>% 
+    mutate(solar = sample(solar, nrow(.))) %>% 
+    group_by(treatment) %>% 
+    summarize(prop = mean(solar == "Installed"))
+  with(shuffled, prop[treatment == "Tax break"] - prop[treatment == "No tax break"])
+})
+
+observed_difference <- 21/25 - 16/25
+
+tibble(null_dist) %>% 
+  ggplot(aes(null_dist)) +
+  geom_histogram(binwidth = 0.05) +
+  geom_vline(xintercept = observed_difference, 
+             linewidth = 2, 
+             color = "firebrick") +
+  labs(x = "Difference in proportions",
+       y = "Count (out of 500 shuffles)") +
+  xlim(-0.5, 0.5) +
+  theme_classic(18)
+
+tibble(null_dist) %>% 
+  ggplot(aes(null_dist)) +
+  geom_histogram(aes(fill = abs(null_dist) >= abs(observed_difference)),
+                 binwidth = 0.05) +
+  geom_vline(xintercept = observed_difference, 
+             linewidth = 2, 
+             color = "firebrick") +
+  scale_fill_manual(values = c("cornflowerblue", "orchid1")) +
+  labs(x = "Difference in proportions",
+       y = "Count (out of 500 shuffles)") +
+  xlim(-0.5, 0.5) +
+  theme_classic(18) +
+  theme(legend.position = "none")
+
+tibble(null_dist) %>% 
+  ggplot(aes(null_dist)) +
+  geom_histogram(aes(fill = null_dist >= observed_difference),
+                 binwidth = 0.05) +
+  geom_vline(xintercept = observed_difference, 
+             linewidth = 2, 
+             color = "firebrick") +
+  scale_fill_manual(values = c("cornflowerblue", "orchid1")) +
+  labs(x = "Difference in proportions",
+       y = "Count (out of 500 shuffles)") +
+  xlim(-0.5, 0.5) +
+  theme_classic(18) +
+  theme(legend.position = "none")
+
+tibble(null_dist) %>% 
+  ggplot(aes(null_dist)) +
+  geom_histogram(aes(fill = null_dist < observed_difference),
+                 binwidth = 0.05) +
+  geom_vline(xintercept = observed_difference, 
+             linewidth = 2, 
+             color = "firebrick") +
+  scale_fill_manual(values = c("cornflowerblue", "orchid1")) +
+  labs(x = "Difference in proportions",
+       y = "Count (out of 500 shuffles)") +
+  xlim(-0.5, 0.5) +
+  theme_classic(18) +
+  theme(legend.position = "none")
+```
+
+
+```{r}
+# Now with regression
+set.seed(2102)
+
+# Make dataset with simulated density for Pisaster sea stars and sea urchins
+urchin_barrens <- tibble(
+  pisaster_density = rnorm(100, mean = 3, sd = 0.5),
+  urchin_density = rnorm(100, mean = 6 - 0.75 * pisaster_density, sd = 1.5)
+)
+
+ggplot(urchin_barrens, aes(pisaster_density, urchin_density)) +
+  geom_point(size = 3, shape = 21, 
+             color = "navy", 
+             fill = "navy",
+             alpha = 0.5) +
+  geom_smooth(method = "lm", se = FALSE, color = "plum", linewidth = 2) +
+  labs(x = expression("Sea star density " * (ind ~ m^{-2})),
+       y = expression("Urchin density " * (ind ~ m^{-2}))) +
+  theme_classic(18)
+
+# beta1
+beta1 <- coef(lm(urchin_density ~ pisaster_density, urchin_barrens))[2]
+beta1
+
+# draw 6 random samples from the dataset and fit a regression line through them
+lapply(1:6, \(i) {
+  urchin_barrens %>% 
+    mutate(pisaster_density = sample(pisaster_density, nrow(.))) %>% 
+    ggplot(aes(pisaster_density, urchin_density)) +
+    geom_point(size = 3, shape = 21, 
+               color = "navy", 
+               fill = "navy",
+               alpha = 0.5) +
+    geom_smooth(method = "lm", se = FALSE, color = "plum", linewidth = 2) +
+    labs(x = expression("Sea star density " * (ind ~ m^{-2})),
+         y = expression("Urchin density " * (ind ~ m^{-2}))) +
+    theme_classic(12) +
+    theme(plot.background = element_rect(color = "grey80", fill = NA),
+          plot.margin = unit(c(3, 3, 3, 3), "mm"))
+}) %>% 
+  cowplot::plot_grid(plotlist = ., nrow = 2)
+
+# replicate the random sampling 500x, fit a regression model for each of these replicates, and get the beta1 of each of them. 
+null_dist <- replicate(500, {
+  shuffled <- urchin_barrens %>% 
+    mutate(pisaster_density = sample(pisaster_density, nrow(.)))
+  coef(lm(urchin_density ~ pisaster_density, shuffled))[2]
+})
+
+# Get the range for the null_dist object (500 beta1 values drawn for the regression on the 500 random samples)
+range(null_dist)
+
+# Make into tibble for plotting
+tibble(null_dist) %>% 
+  ggplot(aes(null_dist)) +
+  geom_histogram(binwidth = 0.1) +
+  labs(x = "Sea star density coefficient",
+       y = "Count (out of 500 shuffles)") +
+  xlim(-1.1, 1.1) +
+  theme_classic(18)
+
+sum(abs(null_dist) >= abs(beta1))
+mean(abs(null_dist) >= abs(beta1))
+
+```
+
+
+```{r}
+# central limit theorem
+set.seed(2219)
+# create log-normal data
+nonnormal <- tibble(x = rlnorm(1e4, meanlog = 2, sdlog = 0.5))
+
+# draw random samples from the mean of the lognormal distribution
+clt <- tibble(mean_x = replicate(1e4, mean(sample(nonnormal$x, 1e3))))
+
+# plot them
+ggplot(nonnormal, aes(x)) +
+  geom_histogram() +
+  xlim(0, 50) +
+  theme_classic(18)
+
+ggplot(clt, aes(mean_x)) +
+  geom_histogram() +
+  labs(x = expression(mu)) +
+  theme_classic(18)
+
+```
+
+
+
+```{r}
+# Standard error of the difference of means
+library(palmerpenguins)
+
+penguins %>% 
+  filter(species %in% c("Adelie", "Gentoo")) %>% 
+  ggplot(aes(x = body_mass_g)) +
+  geom_histogram(color = "blue", fill = NA) +
+  facet_grid(species ~ .) +
+  labs(x = "Body mass (g)") +
+  theme_classic(18)
+
+ggplot(tibble(difference = seq(-500, 1500),
+              density = dnorm(difference, mean = 0, sd = 58.8))) +
+  geom_line(aes(difference, density), linewidth = 2, alpha = 0) +
+  geom_vline(xintercept = 1375, color = "firebrick", linewidth = 2) +
+  labs(x = "Difference in means",
+       y = "Probability density") +
+  theme_classic(18)
+
+penguins %>% 
+  filter(species == "Adelie",
+         island %in% c("Biscoe", "Dream")) %>% 
+  drop_na(body_mass_g) %>% 
+  ggplot(aes(x = body_mass_g)) +
+  geom_histogram(color = "blue", fill = NA, bins = 15) +
+  facet_grid(island ~ .) +
+  labs(x = "Body mass (g)") +
+  theme_classic(18)
+
+# difference between islands?
+adelie_biscoe <- with(penguins, # Why use with?
+                      body_mass_g[species == "Adelie" &
+                                    island == "Biscoe"])
+adelie_dream <- with(penguins, 
+                     body_mass_g[species == "Adelie" &
+                                   island == "Dream"])
+
+obs_diff <- mean(adelie_biscoe - adelie_dream) # remember this is wrong
+obs_diff <- mean(adelie_biscoe) - mean(adelie_dream)
+
+se <- function(a, b) {
+  a <- na.omit(a)
+  b <- na.omit(b)
+  sqrt(sd(a)^2 / length(a) + sd(b)^2 / length(b))
+}
+
+se_diff <- se(adelie_biscoe, adelie_dream)
+
+pval <- 2 * pnorm(-abs(obs_diff), 
+                  mean = 0, 
+                  sd = se_diff)
+
+pval <- 2 * pnorm(0, 
+                  mean = -abs(obs_diff), 
+                  sd = se_diff) # Remember this is a probability - must be between 0 and 1.
+
+```
+
+
+```{r}
+# standard error of a regression coefficient
+ggplot(penguins, aes(x = body_mass_g, y = bill_length_mm)) +
+  geom_point(shape = 21, color = "blue", fill = "navy", alpha = 0.5) +
+  labs(x = "Body mass (g)",
+       y = "Bill length (mm)") +
+  geom_smooth(method = "lm", se = FALSE, color = "firebrick", linewidth = 2) +
+  theme_classic(18) +
+  theme(plot.margin = unit(c(3, 8, 3, 3), "mm"))
+summary(lm(bill_length_mm ~ body_mass_g, penguins))
+
+
+# Visualizing z-scores
+z_score_plot <- function(sd) { # number of SEs away from the mean
+  ggplot(tibble(x = seq(-4 * sd, 4 * sd, length.out = 200),
+                density = dnorm(x, 0, sd)),
+         aes(x, density)) +
+    geom_line(linewidth = 1.5, color = "cornflowerblue") +
+    geom_vline(xintercept = c(-1.96, 1.96) * sd, 
+               linewidth = 1.5, 
+               color = "firebrick",
+               alpha = 0.5) +
+    labs(title = sprintf("SD = %0.1f", sd)) +
+    theme_classic(14)
+}
+
+lapply(c(0.2, 1, 20), z_score_plot) %>% # apply?
+  cowplot::plot_grid(plotlist = ., nrow = 1)
+```
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+

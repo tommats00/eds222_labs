@@ -1,0 +1,344 @@
+---
+title: "EDS222 Week 8 Lab: Hypothesis testing"
+format: 
+  html:
+    echo: true
+    eval: false
+    code-tools: true
+bibliography: references.bib
+---
+
+```{r}
+#| label: setup
+#| include: false
+
+library(tidyverse)
+theme_set(theme_classic(14))
+
+```
+
+# To lead poison a mockingbird
+
+## Background
+
+Lead is an important contaminant in urban areas with well-known impacts on human health, but do non-human animals also face risks from lead exposure? Hitt *et al.* investigated this question by measuring lead levels in soil and the blood of breeding mockingbirds, as well as egg hatching and offspring development [@hitt2023]. We will replicate parts of their analysis here.
+
+## Get the data
+
+The data for this study were deposited in the Dryad Data Repository and are available [here](https://datadryad.org/stash/dataset/doi:10.5061/dryad.tht76hf3v). Download the full dataset and put them in the appropriate folder of your RStudio project.
+
+Read the northern mockingbird nestling data ("NOMO_Nest_Data.csv") and nestling lead data ("NestlingPb.csv") into data frames called `nest_data` and `nestlingpb_data`, respectively. Filter both data frames to the Uptown and Lakeshore neighborhoods.
+
+```{r}
+#| label: load-data
+nest_data <- read_csv(here("data", "NOMO_Nest_Data.csv")) %>% 
+  filter(hood %in% c("ls", "up"))
+
+nestlingpb_data <- read_csv(here("data", "NestlingPb.csv")) %>% 
+  filter(hood %in% c("lakeshore", "uptown"))
+```
+
+## Hypothesis testing by randomization
+
+*Do mockingbirds in a neighborhood with higher lead concentration have less successful nests?*
+
+We'll investigate this question using randomization hypothesis testing.
+
+### Nest success
+
+`nest_data` contains columns `hood` and `bin.status`, representing the neighborhood and *binary status* (at least one chick fledged or not) for each monitored nest. Visualize how nest success (i.e., binary status) varied by neighborhood.
+
+```{r}
+#| label: visualize-success
+ggplot(nest_data, aes(x = hood, fill = factor(bin.status))) + 
+  geom_bar() +
+  scale_fill_brewer("Nest Success", palette = "Dark2")
+```
+
+#### Step 1: state the null and alternative hypotheses
+
+*H~0~: Neighborhood has no effect on nest success\
+H~A~: Neighborhood has an effect on nest success*
+
+#### Step 2: calculate the point statistic
+
+1\) What is the relevant sample statistic for our hypothesis?
+
+Difference in proportions
+
+2\) How would you calculate it?
+
+```{r}
+#| label: point-estimate-success
+
+# Quantiying proportions for both neighborhoods
+nest_success <- nest_data %>% 
+  group_by(hood) %>% 
+  summarize(prop = sum(bin.status) / n())
+
+nest_success
+
+# Taking the difference of proportions to find our sample statistic 
+point_estimate_success <- nest_success$prop[2] - nest_success$prop[1]
+
+point_estimate_success
+```
+
+#### Step 3: quantify the uncertainty
+
+Use randomization to simulate the distribution of the sample statistic under the null hypothesis.
+
+```{r}
+#| label: randomization-success
+
+# Randomizing to simulate distribution of sample statistic under null
+null_dist <- replicate(1000, {
+  nest_success <- nest_data %>% 
+    mutate(hood = sample(hood, n())) %>% ## sample() function is "randomizing"
+    group_by(hood) %>% 
+    summarize(prop = sum(bin.status) / n())
+  
+  point_estimate_success <- nest_success$prop[2] - nest_success$prop[1]
+})
+
+# Plot our histogram, vline represents our point estimate
+ggplot(tibble(null_dist), aes(null_dist)) +
+  geom_histogram(bins = 20,
+                 color = "cornflowerblue",
+                 fill = NA) +
+  geom_vline(xintercept = point_estimate_success,
+             color = "firebrick")
+```
+
+#### Step 4: calculate probability of the point estimate under the null
+
+What's the p-value?
+
+```{r}
+#| label: pval-success
+
+sum(abs(null_dist) > abs(point_estimate_success)) / 
+  length(null_dist)
+```
+
+#### Step 5: reject or fail to reject the null
+
+We're using a threshold of alpha = 0.05 (by convention) p\> 0.05, so we fail to reject the null
+
+Do we accept the null? NO. NO WE DO NOT.
+
+### Nestling blood lead levels
+
+Now it's your turn. Perform a similar analysis to investigate whether nestling blood Pb levels vary by neighborhood. Use `nestlingpb_data` for this part, column `blood_ug_dl_pbwt`.
+
+First, visualize the blood Pb levels by neighborhood. What's an appropriate type of visualization for this?
+
+```{r}
+#| label: visualize-bloodpb
+
+ggplot(data = nestlingpb_data, aes(x = hood, y = blood_ug_dl_pbwt)) +
+  geom_boxplot()
+```
+
+#### Step 1: state the null and alternative hypotheses
+
+*H~0~: Neighborhood has no effect on blood_ug_dl_pbwt\
+H~A~: Neighborhood has no effect on blood_ug_dl_pbwt*
+
+#### Step 2: calculate the point statistic
+
+1\) What is the relevant sample statistic for our hypothesis?
+
+The difference in mean of blood_ug_dl_pbwt of lakeshore and uptown neighborhoods
+
+2\) How would you calculate it?
+
+```{r}
+#| label: point-estimate-bloodpb
+
+blood_success <- nestlingpb_data %>% 
+  group_by(hood) %>% 
+  summarize(mean = sum(blood_ug_dl_pbwt)/ n())
+
+lead_diff <- blood_success$mean[2] - blood_success$mean[1]
+
+blood_success
+lead_diff
+
+```
+
+#### Step 3: quantify the uncertainty
+
+Use randomization to simulate the distribution of the sample statistic under the null hypothesis.
+
+```{r}
+#| label: randomization-bloodpb
+
+null_dist2 <- replicate(1000, {
+  blood_success <- nestlingpb_data %>% 
+    mutate(hood = sample(hood, n())) %>% 
+    group_by(hood) %>% 
+    summarize(mean = sum(blood_ug_dl_pbwt) / n())
+  
+  lead_diff <- blood_success$mean[2] - blood_success$mean[1]
+})
+
+ggplot(tibble(null_dist2), aes(null_dist2)) +
+  geom_histogram(bins = 20,
+                 color = "cornflowerblue",
+                 fill = NA) +
+  geom_vline(xintercept = lead_diff,
+             color = "firebrick")
+```
+
+#### Step 4: calculate probability of the point estimate under the null
+
+What's the p-value?
+
+```{r}
+#| label: pval-bloodpb
+sum(abs(null_dist2) > abs(lead_diff)) / 
+  length(null_dist2)
+```
+
+#### Step 5: reject or fail to reject the null
+
+## Hypothesis testing by normal approximation
+
+Rather than using randomization to simulate the null distribution, it's often easier to approximate it as a normal distribution.
+
+***Does nestling blood Pb level have a relationship with feather Pb level?***
+
+First, visualize the relationship between the two variables.
+
+```{r}
+#| label: blood-feathers-visualization
+
+ggplot(nestlingpb_data, aes(blood_ug_dl_pbwt, 
+                            feather_ug_g_pbwt)) +
+  geom_point() +
+  geom_smooth(method = "lm",
+              se = FALSE,
+              lwd = 1.5)
+```
+
+#### Step 1: state the null and alternative hypotheses
+
+*H~0~:\
+H~A~:*
+
+#### Step 2: calculate the point statistic
+
+1\) What is the relevant sample statistic for our hypothesis?
+
+**Regression coefficient**
+
+2\) How would you calculate it?
+
+```{r}
+#| label: blood-feathers-lm
+
+blood_feathers_lm <- lm(feather_ug_g_pbwt ~ blood_ug_dl_pbwt,
+                        data = nestlingpb_data)
+
+summary(blood_feathers_lm)
+```
+
+#### Step 3: quantify the uncertainty
+
+Use the standard error of the regression coefficient to visualize the distribution of the sample statistic under the null hypothesis.
+
+```{r}
+#| label: blood-feathers-null
+
+# Indexing 
+beta1_estimate <- summary(blood_feathers_lm)$coefficients[2,1]
+
+beta1_SE <- summary(blood_feathers_lm)$coefficients[2,2]
+
+tibble(beta1 = seq(-(beta1_estimate + beta1_SE),
+                   beta1_estimate + beta1_SE,
+                   length.out = 200),
+       density = dnorm(beta1, mean = 0, sd = beta1_SE)) %>% 
+  ggplot(aes(beta1, density)) +
+  geom_line(color = "cornflowerblue") +
+  geom_vline(xintercept = beta1_estimate, color = "firebrick")
+```
+
+#### Step 4: calculate probability of the point estimate under the null
+
+What's the p-value? Use `pnorm()` to get the probability of a point estimate at least as extreme as the observed.
+
+```{r}
+#| label: blood-feathers-pval
+pval <- 2* pnorm(-abs(beta1_estimate), mean = 0, sd = beta1_SE)
+pval
+```
+
+::: callout-note
+Our calculate p-value is much lower than the p-value from the summary of our linear model. In class I told you `lm()` uses a *Student's t-distribution* instead of a normal distribution for calculating the p-value. When sample sizes are large, the normal distribution and t-distribution are virtually identical. With only 22 complete data points, our sample size is relatively small. Therefore the t-distribution has *thicker tails* and yields a larger p-value. Hence the discrepancy.
+:::
+
+#### Step 5: reject or fail to reject the null
+
+### Sensitivity to outliers
+
+Revisit the visualization of the blood and feather Pb levels. One point seems to be an extreme outlier, and it seems to be exerting a strong influence on our model. Repeat the previous analysis with that point removed, then answer the question below.
+
+```{r}
+#| label: remove-outlier
+
+```
+
+**Question:** Of the two analyses (with and without the outlier), which had a lower p-value? Does that make it a better analysis?
+
+## Confidence intervals
+
+For the last part of today's lab we will construct confidence intervals around the point estimate of the blood Pb level coefficient. Here's the plan:
+
+1.  Simulate a population of nestlings, with the same relationship between blood and feather Pb levels as the observed sample.
+
+2.  Draw a new sample of nestlings from the simulated population. Create a confidence interval for the point estimate of the blood Pb level coefficient in this sample.
+
+3.  Repeat the process 100 times.
+
+\~95% of our 95% CIs should contain the population parameter.
+
+### 1. Simulate the population
+
+```{r}
+#| label: blood-feather-pop
+
+```
+
+### 2. Create one confidence interval
+
+```{r}
+#| label: blood-feather-ci
+
+```
+
+### 3. Repeat the process
+
+How many 95% CIs contain the population parameter?
+
+```{r}
+#| label: repeat-ci
+
+```
+
+## Recap
+
+-   Randomization allows us to simulate the null distribution, which we can use to quantify the probability of our result if the null hypothesis is true.
+
+    -   `sample()` and `replicate()` are helpful here!
+
+    -   Randomization doesn't make assumptions about the normality of the sample statistic, but it does assume the sample is representative of the population.
+
+-   By assuming the sample statistic is normally distributed, we can use standard errors to conduct hypothesis testing.
+
+    -   R will calculate standard errors for us for most sample statistics, such as regression coefficients.
+
+-   We can also use standard errors to construct confidence intervals.
+
+    -   By simulating a population, we demonstrated \~95% of 95% CIs will contain the population parameter.
